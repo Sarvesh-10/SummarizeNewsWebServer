@@ -4,6 +4,7 @@ from textblob import TextBlob
 import nltk
 import json
 from newsapi.newsapi_client import NewsApiClient
+import newspaper
 
 
 from newspaper import Article
@@ -12,21 +13,29 @@ Newsapi = NewsApiClient(api_key='cc10ab289d7a4bfaae76a9874cd6ee43')
 
 
 class News:
-    author = ''
+    author = 'Unknown'
     publishDetails =''
     title = ''
     url = ''
     urlToImage = ''
-    summarizeNews = ''
-    def __init__(self,author,publishDetails,title,url,urlToImage):
+    description = ''
+    summarizeNews = 'Summarized News'
+    def __init__(self,author,publishDetails,title,url,urlToImage,desc):
         self.author = author
         self.publishDetails = publishDetails
         self.title = title
         self.url = url
         self.urlToImage = urlToImage
-    
+        self.description = desc
 
 
+
+
+class NewsEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, News):
+            return obj.__dict__
+        return super().default(obj)
 
 
 
@@ -36,7 +45,7 @@ app = Flask(__name__)
 def formData(newsData):
     listOfNews = []
     for article in newsData['articles']:
-        listOfNews.append(News(author=article['author'],publishDetails=article['publishedAt'],title=article['title'],url=article['url'],urlToImage=article['urlToImage']))
+        listOfNews.append(News(author=article['author'],publishDetails=article['publishedAt'],title=article['title'],url=article['url'],urlToImage=article['urlToImage'],desc=article['description']))
     return listOfNews
 
 
@@ -48,12 +57,14 @@ def summarize(listOfNews):
             article.parse()
             article.nlp()
             news.summarizeNews = article.summary
-        except:
-            print("ERROR OCCURRED")
+        except newspaper.ArticleException:
+            print(newspaper.ArticleException.__name__)
+            news.summarizeNews = news.description
+
     return listOfNews
 
 
-        
+
 
 @app.route('/')
 def index():
@@ -61,15 +72,20 @@ def index():
 
 @app.route('/get/<cat>')
 def getNews(cat):
-    newsData = Newsapi.get_top_headlines(language='en',country='in',category=cat)
-    print(type(newsData))
+    newsData = Newsapi.get_top_headlines(language='en',category=cat)
     listOfNews = formData(newsData=newsData)
     listOfNews = summarize(listOfNews=listOfNews)
-    jsonString =  json.dumps(listOfNews,default=lambda o:o.__dict__)
-    return jsonString
+    jsonString =  json.dumps(listOfNews,cls=NewsEncoder)
+    
+    jsonObject = {
+        "messageStatus":200,
+        "articles":json.loads(jsonString)
+    }
+    return jsonObject
+    
 
-    
-    
+
+
 
 
 if __name__ == "__main__":
@@ -84,19 +100,13 @@ if __name__ == "__main__":
     iii)Business
     iv)Entertainment
     v)Health
-
-    
-
     ix)science
     x)Technology
-
-    
-    
-    xiv)general
+    xiv)general    
 '''
 
 
 
-        
+
 
 
